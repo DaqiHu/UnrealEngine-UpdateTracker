@@ -2,7 +2,7 @@
 PyGithub
 
 # For Google Gemini API
-google-generativeai
+google-genai
 
 # For local development (reading .env files)
 python-dotenv

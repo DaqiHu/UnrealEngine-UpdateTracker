@@ -2,9 +2,9 @@
 # This script will contain the core logic for checking Unreal Engine updates.
 import os
 import requests
-from github import Github
+from github import Github, Auth
 from github.GithubException import UnknownObjectException
-import google.generativeai as genai
+from google import genai
 import time
 from datetime import datetime, timedelta
 
@@ -58,8 +58,13 @@ def filter_commit(commit):
     if all(f.filename.startswith("Documentation/") for f in commit.files):
         return False
     # Ignore simple typo fixes
-    if "typo" in commit_message and commit.files.totalCount == 1:
-        return False
+    if "typo" in commit_message:
+        try:
+            total = commit.files.totalCount
+        except (KeyError, AttributeError):
+            total = sum(1 for _ in commit.files)
+        if total == 1:
+            return False
     # Ignore merge commits without file changes
     if commit.parents and len(commit.parents) > 1 and not commit.files:
         return False
@@ -69,7 +74,7 @@ def filter_commit(commit):
     return True
 
 
-def analyze_commits_in_bulk(model, commits, report_language="Japanese"):
+def analyze_commits_in_bulk(ai_client, model_name, commits, report_language="Japanese"):
     """
     Analyzes a list of commits in bulk with the Gemini API and returns a formatted Markdown report.
     """
@@ -109,7 +114,7 @@ Files Changed:
         # print(f"\n--- BULK PROMPT ---\n{prompt}\n--------------------")
         # --- End of Detailed Logging ---
 
-        response = model.generate_content(prompt)
+        response = ai_client.models.generate_content(model=model_name, contents=prompt)
         
         # --- Start of Detailed Logging ---
         print(f"--- BULK RESPONSE ---\n{response.text}\n--------------------\n")
@@ -320,13 +325,12 @@ def main():
     
     try:
         print("Initializing GitHub client...")
-        github_client = Github(pat)
+        github_client = Github(auth=Auth.Token(pat))
         print("GitHub client initialized.")
         
         gemini_model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-pro")
         print(f"Configuring Gemini API with model: {gemini_model_name}...")
-        genai.configure(api_key=gemini_api_key)
-        ai_model = genai.GenerativeModel(gemini_model_name)
+        ai_client = genai.Client(api_key=gemini_api_key)
         print("Gemini API configured.")
     except Exception as e:
         print(f"FATAL: Failed to initialize APIs: {e}")
@@ -382,7 +386,7 @@ def main():
     print("\n--- 5. Generating and Sending Report ---")
     report_language = os.environ.get("REPORT_LANGUAGE", "Japanese")
     print(f"Report language set to: {report_language}")
-    report_body = analyze_commits_in_bulk(ai_model, important_commits, report_language)
+    report_body = analyze_commits_in_bulk(ai_client, gemini_model_name, important_commits, report_language)
     
     if report_body:
         report_title = f"Unreal Engine Daily Report - {time.strftime('%Y-%m-%d')}"
