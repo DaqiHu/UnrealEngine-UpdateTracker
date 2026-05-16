@@ -1,10 +1,10 @@
 # main.py
 # This script will contain the core logic for checking Unreal Engine updates.
 import os
+import abc
 import requests
 from github import Github, Auth
 from github.GithubException import UnknownObjectException
-from google import genai
 import time
 from datetime import datetime, timedelta
 
@@ -151,6 +151,80 @@ FEATURE_SIGNATURES = {
 }
 
 
+class AIProvider(abc.ABC):
+    """Abstract base for AI model providers."""
+
+    @abc.abstractmethod
+    def generate(self, model: str, prompt: str) -> str:
+        ...
+
+    @abc.abstractmethod
+    def name(self) -> str:
+        ...
+
+
+class GeminiProvider(AIProvider):
+    """Google Gemini via google.genai SDK."""
+
+    def __init__(self, api_key: str):
+        from google import genai
+        self._client = genai.Client(api_key=api_key)
+
+    def generate(self, model: str, prompt: str) -> str:
+        response = self._client.models.generate_content(model=model, contents=prompt)
+        return response.text
+
+    def name(self) -> str:
+        return "Gemini"
+
+
+class DeepSeekProvider(AIProvider):
+    """DeepSeek via OpenAI-compatible API.
+    Activated by setting AI_PROVIDER=deepseek and DEEPSEEK_API_KEY."""
+
+    def __init__(self, api_key: str):
+        self._api_key = api_key
+        self._base_url = "https://api.deepseek.com/v1"
+
+    def generate(self, model: str, prompt: str) -> str:
+        resp = requests.post(
+            f"{self._base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {self._api_key}"},
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
+
+    def name(self) -> str:
+        return "DeepSeek"
+
+
+def create_ai_provider() -> AIProvider | None:
+    """Factory: reads AI_PROVIDER env and returns the matching provider or None."""
+    provider_name = os.environ.get("AI_PROVIDER", "gemini").strip().lower()
+
+    if provider_name == "gemini":
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            print("FATAL: GEMINI_API_KEY environment variable not set.")
+            return None
+        return GeminiProvider(api_key)
+
+    if provider_name == "deepseek":
+        api_key = os.environ.get("DEEPSEEK_API_KEY")
+        if not api_key:
+            print("FATAL: DEEPSEEK_API_KEY environment variable not set.")
+            return None
+        print("WARNING: DeepSeek provider is defined but not yet production-ready — use at your own risk.")
+        return DeepSeekProvider(api_key)
+
+    print(f"FATAL: Unknown AI_PROVIDER '{provider_name}'. Supported: gemini, deepseek")
+    return None
+
+
 def tag_commit_features(commit):
     """Returns the set of tracked features this commit relates to."""
     msg = commit.commit.message.lower()
@@ -227,9 +301,9 @@ def filter_commit(commit):
     return True
 
 
-def analyze_commits_in_bulk(ai_client, model_name, commits, report_language="Japanese"):
+def analyze_commits_in_bulk(ai_provider: AIProvider, model_name: str, commits, report_language: str = "Japanese") -> str | None:
     """
-    Analyzes a list of commits in bulk with the Gemini API and returns a formatted Markdown report.
+    Analyzes a list of commits in bulk with the AI provider and returns a formatted Markdown report.
     """
     print(f"Aggregating {len(commits)} commits for bulk analysis...")
     
@@ -273,15 +347,15 @@ Files Changed:
             aggregated_commits=aggregated_commits
         )
 
-        print(f"  > Sending aggregated prompt to Gemini for {len(commits)} commits (Language: {report_language})...")
+        print(f"  > Sending aggregated prompt to {ai_provider.name()} for {len(commits)} commits (Language: {report_language})...")
         print(f"  > Tracked features: {len(feature_names)}")
 
-        response = ai_client.models.generate_content(model=model_name, contents=prompt)
+        response = ai_provider.generate(model=model_name, prompt=prompt)
         
-        print(f"--- BULK RESPONSE ---\n{response.text}\n--------------------\n")
-        print(f"  < Received bulk response from Gemini.")
+        print(f"--- BULK RESPONSE ---\n{response}\n--------------------\n")
+        print(f"  < Received bulk response from {ai_provider.name()}.")
         
-        return response.text
+        return response
 
     except FileNotFoundError:
         print("FATAL: prompts/report_prompt.md not found.")
@@ -470,27 +544,23 @@ def main():
     # --- API Setup ---
     print("\n--- 1. Setting up APIs ---")
     pat = os.environ.get("UE_REPO_PAT")
-    gemini_api_key = os.environ.get("GEMINI_API_KEY")
     
     if not pat:
         print("FATAL: UE_REPO_PAT environment variable not set.")
         return
     print("UE_REPO_PAT found.")
-        
-    if not gemini_api_key:
-        print("FATAL: GEMINI_API_KEY environment variable not set.")
-        return
-    print("GEMINI_API_KEY found.")
     
     try:
         print("Initializing GitHub client...")
         github_client = Github(auth=Auth.Token(pat))
         print("GitHub client initialized.")
         
-        gemini_model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-pro")
-        print(f"Configuring Gemini API with model: {gemini_model_name}...")
-        ai_client = genai.Client(api_key=gemini_api_key)
-        print("Gemini API configured.")
+        ai_provider = create_ai_provider()
+        if ai_provider is None:
+            return
+        
+        model_name = os.environ.get("AI_MODEL") or os.environ.get("GEMINI_MODEL", "gemini-2.5-pro")
+        print(f"AI provider: {ai_provider.name()}, model: {model_name}")
     except Exception as e:
         print(f"FATAL: Failed to initialize APIs: {e}")
         return
@@ -545,7 +615,7 @@ def main():
     print("\n--- 5. Generating and Sending Report ---")
     report_language = os.environ.get("REPORT_LANGUAGE", "Japanese")
     print(f"Report language set to: {report_language}")
-    report_body = analyze_commits_in_bulk(ai_client, gemini_model_name, important_commits, report_language)
+    report_body = analyze_commits_in_bulk(ai_provider, model_name, important_commits, report_language)
     
     if report_body:
         report_title = f"Unreal Engine Daily Report - {time.strftime('%Y-%m-%d')}"
