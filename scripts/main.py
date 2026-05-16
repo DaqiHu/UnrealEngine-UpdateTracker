@@ -13,6 +13,159 @@ raw_limit = os.environ.get("COMMIT_SCAN_LIMIT") # Keep for manual override
 COMMIT_SCAN_LIMIT = int(raw_limit) if raw_limit and raw_limit.isdigit() else None
 UE_BRANCH = os.environ.get("UE_BRANCH", "ue5-main") # Target branch
 
+FEATURE_SIGNATURES = {
+    "Lumen": {
+        "path_patterns": ["Runtime/Renderer/Private/Lumen"],
+    },
+    "Nanite": {
+        "path_patterns": [
+            "Runtime/Renderer/Private/Nanite",
+            "Runtime/Engine/Private/Nanite",
+        ],
+    },
+    "VSM": {
+        "path_patterns": ["Runtime/Renderer/Private/VirtualShadowMaps"],
+    },
+    "VT": {
+        "path_patterns": ["Runtime/Renderer/Private/VT"],
+    },
+    "Toon Shading": {
+        "keywords": ["toon", "cel shading", "npr", "stylized", "anime shading"],
+    },
+    "Animation": {
+        "path_patterns": [
+            "Runtime/Engine/Private/Animation",
+            "Runtime/AnimationCore",
+            "Runtime/AnimGraphRuntime",
+            "Runtime/Experimental/Animation",
+            "Plugins/Animation",
+        ],
+    },
+    "UAF": {
+        "keywords": ["uaf", "unreal animation framework", "animation framework"],
+    },
+    "Mover": {
+        "path_patterns": [
+            "Plugins/Experimental/Mover/Source/Mover",
+            "Plugins/Experimental/ChaosMover/Source/ChaosMover",
+            "Plugins/Experimental/MoverAnimNext/Source/MoverAnimNext",
+        ],
+    },
+    "Level Streaming": {
+        "path_patterns": [
+            "Runtime/Engine/Private/Streaming",
+            "Runtime/Engine/Private/LevelInstance",
+        ],
+    },
+    "World Partition": {
+        "path_patterns": [
+            "Runtime/Engine/Private/WorldPartition",
+            "Runtime/Engine/Private/ActorPartition",
+            "Runtime/Engine/Private/ISMPartition",
+            "Runtime/Engine/Private/PackedLevelActor",
+        ],
+    },
+    "Chaos Physics": {
+        "path_patterns": [
+            "Runtime/Experimental/Chaos",
+            "Runtime/Experimental/ChaosCore",
+            "Runtime/Experimental/ChaosSolverEngine",
+            "Runtime/Experimental/ChaosVehicles",
+            "Runtime/Experimental/ChaosVisualDebugger",
+        ],
+    },
+    "Geometry Collection": {
+        "path_patterns": ["Runtime/Experimental/GeometryCollectionEngine"],
+    },
+    "Landscape": {
+        "path_patterns": ["Runtime/Landscape"],
+    },
+    "Dynamic Mesh": {
+        "path_patterns": [
+            "Runtime/GeometryFramework",
+            "Runtime/GeometryCore",
+            "Runtime/MeshDescription",
+            "Runtime/MeshConversion",
+        ],
+    },
+    "PCG": {
+        "path_patterns": [
+            "Plugins/PCG/Source/PCG",
+            "Plugins/PCG/Source/PCGCompute",
+        ],
+    },
+    "Instanced Skinned Mesh": {
+        "path_patterns": [
+            "Runtime/Engine/Private/InstancedSkinnedMesh",
+            "Runtime/Engine/Public/InstancedSkinnedMesh",
+            "Runtime/Engine/Classes/Components/InstancedSkinnedMeshComponent",
+        ],
+    },
+    "Mesh Paint": {
+        "path_patterns": [
+            "Plugins/MeshPainting/Source/MeshPaintEditorMode",
+            "Plugins/MeshPainting/Source/MeshPaintingToolset",
+        ],
+    },
+    "Ray Tracing": {
+        "path_patterns": ["Runtime/Renderer/Private/RayTracing"],
+    },
+    "Substrate": {
+        "path_patterns": ["Runtime/Renderer/Private/Substrate"],
+    },
+    "Niagara": {
+        "path_patterns": [
+            "Plugins/FX/Niagara/Source/Niagara",
+            "Plugins/FX/Niagara/Source/NiagaraCore",
+            "Plugins/FX/Niagara/Source/NiagaraShader",
+            "Plugins/FX/Niagara/Source/NiagaraVertexFactories",
+        ],
+    },
+    "PSO": {
+        "keywords": ["pso", "pipeline state", "pso precache", "pipeline state object"],
+        "path_patterns": [
+            "Runtime/Engine/Private/PSO",
+            "Runtime/Engine/Public/PSO",
+            "Runtime/D3D12RHI/Private/D3D12PipelineState",
+        ],
+    },
+    "Bindless": {
+        "keywords": ["bindless", "bindless render", "bindless descriptor"],
+        "path_patterns": [
+            "Runtime/D3D12RHI/Private/D3D12Bindless",
+            "Runtime/VulkanRHI/Private/VulkanBindless",
+            "Runtime/Apple/MetalRHI/Private/MetalBindless",
+        ],
+    },
+    "MegaLights": {
+        "path_patterns": ["Runtime/Renderer/Private/MegaLights"],
+    },
+    "Physics Assets": {
+        "keywords": ["physics asset", "physicsasset", "body setup", "skeletal body"],
+        "path_patterns": ["Runtime/Engine/Private/PhysicsEngine/PhysicsAsset"],
+    },
+    "Resimulation": {
+        "keywords": ["resim", "resimulation", "evolution resim", "resim cache"],
+        "path_patterns": ["Runtime/Experimental/Chaos/Private/Chaos/EvolutionResimCache"],
+    },
+}
+
+
+def tag_commit_features(commit):
+    """Returns the set of tracked features this commit relates to."""
+    msg = commit.commit.message.lower()
+    paths = [f.filename for f in commit.files]
+    matched = set()
+    for feature, sig in FEATURE_SIGNATURES.items():
+        kw = sig.get("keywords", [])
+        pats = sig.get("path_patterns", [])
+        if any(k in msg for k in kw):
+            matched.add(feature)
+            continue
+        if any(any(p in path for p in pats) for path in paths):
+            matched.add(feature)
+    return matched
+
 
 def fetch_new_commits(github_client):
     """
@@ -53,11 +206,13 @@ def filter_commit(commit):
     Performs primary filtering to exclude obviously unimportant commits.
     Returns True if the commit is potentially important, False otherwise.
     """
+    features = tag_commit_features(commit)
+    if features:
+        return True
+
     commit_message = commit.commit.message.lower()
-    # Ignore commits that only touch documentation
     if all(f.filename.startswith("Documentation/") for f in commit.files):
         return False
-    # Ignore simple typo fixes
     if "typo" in commit_message:
         try:
             total = commit.files.totalCount
@@ -65,10 +220,8 @@ def filter_commit(commit):
             total = sum(1 for _ in commit.files)
         if total == 1:
             return False
-    # Ignore merge commits without file changes
     if commit.parents and len(commit.parents) > 1 and not commit.files:
         return False
-    # Ignore localization-only changes
     if all("Localization/" in f.filename for f in commit.files):
         return False
     return True
@@ -82,13 +235,13 @@ def analyze_commits_in_bulk(ai_client, model_name, commits, report_language="Jap
     
     commits_data = []
     for commit in commits:
-        # IMPORTANT: To comply with Epic Games' license and prevent leaking sensitive information,
-        # DO NOT include file contents or diffs in the data sent to the AI.
-        # Only commit messages and file paths are used.
+        tags = tag_commit_features(commit)
+        tag_str = ", ".join(sorted(tags)) if tags else "(none)"
         file_list = "\n".join([f"- {file.filename}" for file in commit.files])
         commit_info = f"""---
 Commit: {commit.sha[:7]}
 URL: {commit.html_url}
+Tags: {tag_str}
 Message:
 {commit.commit.message}
 Files Changed:
@@ -98,28 +251,34 @@ Files Changed:
     
     aggregated_commits = "\n".join(commits_data)
 
+    feature_names = sorted(FEATURE_SIGNATURES.keys())
+    feature_focus = (
+        "**Tracked Feature Areas:** " + ", ".join(feature_names) + "\n\n"
+        "Pay special attention to commits related to these features. "
+        "If a commit belongs to any tracked feature, include it in the report even if it seems minor.\n\n"
+        "**Output Structure:** At the top of the report, add a `## 🔍 Key Feature Highlights` section "
+        "that organizes notable changes by feature area. "
+        "Then continue with the standard categorized report (New Features, Major Changes, etc.).\n\n"
+        "Each commit has a `Tags:` field indicating which tracked feature areas it touches. "
+        "Use these tags to determine feature relevance."
+    )
+
     try:
-        # Load the prompt from the external file
         with open("prompts/report_prompt.md", "r", encoding="utf-8") as f:
             prompt_template = f.read()
         
         prompt = prompt_template.format(
             report_language=report_language,
+            feature_focus=feature_focus,
             aggregated_commits=aggregated_commits
         )
 
         print(f"  > Sending aggregated prompt to Gemini for {len(commits)} commits (Language: {report_language})...")
-        
-        # --- Start of Detailed Logging ---
-        # print(f"\n--- BULK PROMPT ---\n{prompt}\n--------------------")
-        # --- End of Detailed Logging ---
+        print(f"  > Tracked features: {len(feature_names)}")
 
         response = ai_client.models.generate_content(model=model_name, contents=prompt)
         
-        # --- Start of Detailed Logging ---
         print(f"--- BULK RESPONSE ---\n{response.text}\n--------------------\n")
-        # --- End of Detailed Logging ---
-
         print(f"  < Received bulk response from Gemini.")
         
         return response.text

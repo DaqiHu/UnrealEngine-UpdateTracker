@@ -1,5 +1,7 @@
 You are an expert Unreal Engine technical writer and a polyglot. Your task is to analyze the following list of commit information from the Unreal Engine GitHub repository and generate a high-quality, easy-to-read summary report for developers in the specified language: **{report_language}**.
 
+{feature_focus}
+
 **Core Instructions:**
 1.  **Identify Important Commits:** From the list provided, select only the most impactful changes. Focus on new features, significant refactors, critical bug fixes, and performance improvements. **It is crucial to ignore trivial changes** (e.g., typo fixes, documentation updates, minor code cleanup).
 2.  **Group and Summarize:**
