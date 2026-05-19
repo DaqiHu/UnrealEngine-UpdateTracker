@@ -31,7 +31,7 @@ FEATURE_SIGNATURES = {
         "path_patterns": ["Runtime/Renderer/Private/VT"],
     },
     "Toon Shading": {
-        "keywords": ["toon", "cel shading", "npr", "stylized", "anime shading"],
+        "keywords": ["toon", "cel shading", "npr"],
         "path_patterns": [
             "Runtime/Renderer/Private/Substrate",
             "Shaders/",
