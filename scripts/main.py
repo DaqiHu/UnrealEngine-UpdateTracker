@@ -328,13 +328,12 @@ Files Changed:
     feature_names = sorted(FEATURE_SIGNATURES.keys())
     feature_focus = (
         "**Tracked Feature Areas:** " + ", ".join(feature_names) + "\n\n"
-        "Pay special attention to commits related to these features. "
-        "If a commit belongs to any tracked feature, include it in the report even if it seems minor.\n\n"
-        "**Output Structure:** At the top of the report, add a `## 🔍 Key Feature Highlights` section "
-        "that organizes notable changes by feature area. "
-        "Then continue with the standard categorized report (New Features, Major Changes, etc.).\n\n"
-        "Each commit has a `Tags:` field indicating which tracked feature areas it touches. "
-        "Use these tags to determine feature relevance."
+        "Each commit has a `Tags:` field indicating which tracked feature(s) it belongs to. "
+        "Use these tags to:\n"
+        "1. Build the ## FeatureName per-feature sections — all tagged commits of a feature go under its own `## FeatureName` section, grouped by change topic.\n"
+        "2. Populate ### Feature Highlights — one bullet per affected feature with the representative commit hash.\n"
+        "3. Only commits **without** tracked feature tags go into standard categories (## New Features, ## Major Changes, etc.).\n\n"
+        "If a tracked feature has no notable changes, omit its `##` section entirely."
     )
 
     try:

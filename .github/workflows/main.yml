@@ -60,7 +60,7 @@ jobs:
 
       # --- Dynamic Configuration ---
       # Priority: Manual Input > Repository Variable > Workflow Default
-      REPORT_LANGUAGE: ${{ github.event.inputs.report_language || vars.REPORT_LANGUAGE || 'Japanese' }}
+      REPORT_LANGUAGE: ${{ github.event.inputs.report_language || vars.REPORT_LANGUAGE || 'Chinese' }}
       AI_MODEL: ${{ github.event.inputs.ai_model || vars.AI_MODEL || 'deepseek-v4-flash' }}
       AI_PROVIDER: ${{ github.event.inputs.ai_provider || vars.AI_PROVIDER || 'deepseek' }}
       DISCUSSION_CATEGORY: ${{ github.event.inputs.discussion_category || vars.DISCUSSION_CATEGORY || 'Daily Reports' }}
