@@ -32,10 +32,6 @@ FEATURE_SIGNATURES = {
     },
     "Toon Shading": {
         "keywords": ["toon", "cel shading", "npr"],
-        "path_patterns": [
-            "Runtime/Renderer/Private/Substrate",
-            "Shaders/",
-        ],
     },
     "Animation": {
         "path_patterns": [
