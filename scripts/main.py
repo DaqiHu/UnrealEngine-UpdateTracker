@@ -1,5 +1,6 @@
 # main.py
 # This script will contain the core logic for checking Unreal Engine updates.
+from __future__ import annotations
 import os
 import abc
 import requests
@@ -202,27 +203,26 @@ class DeepSeekProvider(AIProvider):
         return "DeepSeek"
 
 
-def create_ai_provider() -> AIProvider | None:
-    """Factory: reads AI_PROVIDER env and returns the matching provider or None."""
-    provider_name = os.environ.get("AI_PROVIDER", "gemini").strip().lower()
+def create_ai_provider() -> tuple[AIProvider | None, str]:
+    """Factory: reads AI_PROVIDER env and returns (provider, default_model) or (None, '')."""
+    provider_name = os.environ.get("AI_PROVIDER", "deepseek").strip().lower()
 
     if provider_name == "gemini":
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             print("FATAL: GEMINI_API_KEY environment variable not set.")
-            return None
-        return GeminiProvider(api_key)
+            return None, ""
+        return GeminiProvider(api_key), "gemini-2.5-pro"
 
     if provider_name == "deepseek":
         api_key = os.environ.get("DEEPSEEK_API_KEY")
         if not api_key:
             print("FATAL: DEEPSEEK_API_KEY environment variable not set.")
-            return None
-        print("WARNING: DeepSeek provider is defined but not yet production-ready — use at your own risk.")
-        return DeepSeekProvider(api_key)
+            return None, ""
+        return DeepSeekProvider(api_key), "deepseek-v4-flash"
 
     print(f"FATAL: Unknown AI_PROVIDER '{provider_name}'. Supported: gemini, deepseek")
-    return None
+    return None, ""
 
 
 def tag_commit_features(commit):
@@ -555,11 +555,11 @@ def main():
         github_client = Github(auth=Auth.Token(pat))
         print("GitHub client initialized.")
         
-        ai_provider = create_ai_provider()
+        ai_provider, default_model = create_ai_provider()
         if ai_provider is None:
             return
         
-        model_name = os.environ.get("AI_MODEL") or os.environ.get("GEMINI_MODEL", "gemini-2.5-pro")
+        model_name = os.environ.get("AI_MODEL") or os.environ.get("GEMINI_MODEL") or default_model
         print(f"AI provider: {ai_provider.name()}, model: {model_name}")
     except Exception as e:
         print(f"FATAL: Failed to initialize APIs: {e}")
