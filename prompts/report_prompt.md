@@ -27,12 +27,12 @@ If a tracked feature has no notable changes, **omit its section entirely**.
 ### 3. Standard Categories (for non-tracked changes only)
 Commits that do **not** belong to any tracked feature should be grouped under the standard categories below. Each category uses a `##` Level 2 heading:
 
-- `## New Features`
-- `## Major Changes`
-- `## Performance`
-- `## Bug Fixes`
-- `## API Changes`
-- `## Deprecations`
+- `## ✨ New Features`
+- `## 🔧 Major Changes`
+- `## ⚡ Performance`
+- `## 🐛 Bug Fixes`
+- `## 🔄 API Changes`
+- `## 🗑 Deprecations`
 
 Use `### Item Title` (Level 3) for each group of related commits within a category.
 
