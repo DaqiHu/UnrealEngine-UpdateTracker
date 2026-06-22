@@ -7,6 +7,10 @@ on:
         description: 'Number of recent commits to scan. If empty, the script defaults to the last 24 hours.'
         required: false
         default: ''
+      ue_branches:
+        description: 'Comma-separated branches to track (e.g. ue5-main,ue6-main). Default: ue5-main,ue6-main'
+        required: false
+        default: ''
       report_language:
         description: 'Language for the report (e.g., Japanese, English). Default: Japanese'
         required: false
@@ -23,6 +27,10 @@ on:
         description: 'AI provider to use: gemini or deepseek. Default: deepseek'
         required: false
         default: ''
+      gemini_model:
+        description: 'The Gemini model to use for analysis. Default: gemini-3.5-flash'
+        required: false
+        default: ''
       slack_webhook_url:
         description: 'Slack Webhook URL for notifications. Overrides secret.'
         required: false
@@ -36,7 +44,11 @@ on:
         required: false
         default: ''
   schedule:
-    # Runs every day at 23:00 UTC (which is 8:00 AM JST)
+    # Runs every day at 23:00 UTC (which is 8:00 AM JST).
+    # NOTE: there is no persisted state — each run scans the last 24 hours
+    # (see fetch_new_commits in scripts/main.py). If GitHub delays or skips a
+    # scheduled run, commits in the gap can be missed; a re-run can duplicate a
+    # report. This is an intentional trade-off to keep the tool serverless.
     - cron: '0 23 * * *'
 
 jobs:
@@ -45,24 +57,29 @@ jobs:
     # Run on schedule or if manually triggered by the repository owner
     if: github.event_name == 'schedule' || github.actor == github.repository_owner
     permissions:
-      contents: write      # To update the state file (e.g., last_processed_commit.txt)
-      issues: write        # To create issues for error reporting
-      discussions: write   # To post the daily summary reports
+      contents: read       # Only needs to check out this repo; posting uses external PATs/webhooks.
 
     env:
       # --- Secrets (Must be configured in repository settings) ---
       UE_REPO_PAT: ${{ secrets.UE_REPO_PAT }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-      DISCUSSION_REPO: ${{ secrets.DISCUSSION_REPO || github.repository }}
+      # GitHub Discussion posting is opt-in: set BOTH DISCUSSION_REPO (target repo,
+      # e.g. owner/name) and DISCUSSION_REPO_PAT (a PAT with 'discussions: write').
+      # The repo is intentionally NOT defaulted to github.repository and GITHUB_TOKEN
+      # is NOT used as a fallback, to avoid auto-posting UE info to a possibly-public
+      # repo. Leave both unset to skip Discussions and use Slack/Discord only.
+      DISCUSSION_REPO: ${{ secrets.DISCUSSION_REPO }}
       DISCUSSION_REPO_PAT: ${{ secrets.DISCUSSION_REPO_PAT }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # --- Dynamic Configuration ---
       # Priority: Manual Input > Repository Variable > Workflow Default
+      UE_BRANCHES: ${{ github.event.inputs.ue_branches || vars.UE_BRANCHES || vars.UE_BRANCH || 'ue5-main,ue6-main' }}
       REPORT_LANGUAGE: ${{ github.event.inputs.report_language || vars.REPORT_LANGUAGE || 'English' }}
+      REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE || 'Asia/Tokyo' }}
       AI_MODEL: ${{ github.event.inputs.ai_model || vars.AI_MODEL || 'deepseek-v4-flash' }}
       AI_PROVIDER: ${{ github.event.inputs.ai_provider || vars.AI_PROVIDER || 'deepseek' }}
+      GEMINI_MODEL: ${{ github.event.inputs.gemini_model || vars.GEMINI_MODEL || 'gemini-3.5-flash' }}
       DISCUSSION_CATEGORY: ${{ github.event.inputs.discussion_category || vars.DISCUSSION_CATEGORY || 'Daily Reports' }}
       COMMIT_SCAN_LIMIT: ${{ github.event.inputs.commit_scan_limit }}
       SLACK_WEBHOOK_URL: ${{ github.event.inputs.slack_webhook_url || secrets.SLACK_WEBHOOK_URL }}

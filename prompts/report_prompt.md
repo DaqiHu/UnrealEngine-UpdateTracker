@@ -50,6 +50,25 @@ Use `### Item Title` (Level 3) for each group of related commits within a catego
 
 ---
 
+### 🐛 Bug Fixes
+
+**Fixed crash in Physics Engine**
+> A critical crash related to rigid body simulation under high-load scenarios has been resolved. This improves overall stability, especially in physics-heavy games.
+>
+> Commits: [`f0e9d8c`](https://github.com/example/repo/commit/f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3b2a1)
+
+**Resolved rendering artifacts on mobile**
+> Fixed an issue causing visual artifacts on certain mobile GPUs when using the deferred renderer. This ensures a consistent visual experience across supported platforms.
+>
+> Commits: [`b671535`](https://github.com/example/repo/commit/b671535694916f0414f019e9e829a75531066641) [`df33b0f`](https://github.com/example/repo/commit/df33b0f6c5b130d52e16874cb614c3506a14db40)
+
+**Final Output Rules:**
+- The entire report, including headers, must be in **{report_language}**.
+- If no notable changes are found, output a single sentence in the target language stating that (e.g., "本日、特筆すべき更新はありませんでした。").
+- Provide only the Markdown report without any introductory or concluding remarks.
+- If you have omitted items that you have determined to be of low importance, please state at the end of the report that you have omitted some of them.
+
+---
 Here is the commit information to analyze:
 
 {aggregated_commits}
